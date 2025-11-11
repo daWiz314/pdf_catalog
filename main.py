@@ -13,8 +13,9 @@ except ImportError:
 
 pdfs = []
 pdfs_lock = threading.Lock()
-workers = 100
+workers = 1
 threads = []
+page_threads = []
 pages_to_read = 0
 pages_read = 0
 pages_lock = threading.Lock()
@@ -87,7 +88,7 @@ def check_contents_for_query(query, doc):
         # Start workers.
         local_threads = []
         count = 0
-        for i in range(workers+500):
+        for i in range(workers):
             try:
                 temp_pdf = newPDF()
 
@@ -128,37 +129,27 @@ def check_pages_for_query(doc, query, reader, start, end):
     except Exception as error:
         print(f"Error! File: {doc}\nQuery: {query}, Error: {error}")
 
-def figure_contents(data):
-    num = 5
-    while True:
-        if len(data) % num == 0:
-            return num
-        else:
-            num += 1
-
-def start_threads(workers, query, contents, number_of_files):
-    num = 0
+def start_threads(workers, query, contents):
     print("Starting threads!")
     global threads
-    for i in range(workers):
-        try:
-            th_content = contents[i]
-            # print(th_content)
-            # sleep(5)
-            if len(th_content) == 0:
+    for doc in contents:
+        for i in range(workers):
+            try:
+                th_content = doc
+                # print(th_content)
+                # sleep(5)
+                if len(th_content) == 0:
+                    break
+                # print(f"Starting thread number: {i}")
+                # print(f"Query: {query}")
+                # print(f"Data: {th_content}")
+                thread = threading.Thread(target=check_contents_for_query, args=[query, th_content])
+                thread.start()
+                threads.append(thread)
+            except IndexError:
                 break
-            # print(f"Starting thread number: {i}")
-            # print(f"Query: {query}")
-            # print(f"Data: {th_content}")
-            thread = threading.Thread(target=check_contents_for_query, args=[query, th_content])
-            thread.start()
-            threads.append(thread)
-            num += number_of_files
-        except IndexError:
-            break
-
+        
     return
-
 
 def start_all_workers(query, data):
     global threads
@@ -167,8 +158,11 @@ def start_all_workers(query, data):
 
     pages_thread = threading.Thread(target=update_display)
     pages_thread.start()
-    start_threads(len(data), query, data, figure_contents(data))
+    start_threads(1, query, data)
     
+    for thread in page_threads:
+        thread.join()
+
     for thread in threads:
         thread.join()
     
@@ -191,8 +185,12 @@ def main():
     query = get_part_number()
     start_all_workers(query, data)
     
+    if len(pdfs) == 0:
+        print("None found!")
+
     for pdf in pdfs:
-        print(pdf)
+        for page in pdf.data.pages:
+            print(page.extract_text())
 
 main()
 
